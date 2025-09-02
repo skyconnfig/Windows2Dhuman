@@ -1,0 +1,682 @@
+<!doctype html>
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, minimal-ui, viewport-fit=cover,user-scalable=no">
+
+  <link rel="icon" href="data:,">
+  <title>数字人</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #000000;
+      overflow: hidden;
+    }
+
+    .container {
+      background-color: #242424;
+      display: flex;
+      gap: 10px;
+      padding: 10px;
+      box-sizing: border-box;
+      width: 100%;
+      height: 60px;
+      /* 设置高度 */
+      align-items: center;
+      /* 垂直居中内容 */
+      position: fixed;
+      bottom: -5px;
+      z-index: 2;
+      /* 距离底部 20px */
+    }
+
+    @keyframes slideDown {
+      0% {
+        transform: translateY(0);
+        opacity: 1;
+      }
+
+      100% {
+        transform: translateY(100px);
+        /* 向下移动 100px */
+        opacity: 0;
+        /* 渐变消失 */
+      }
+    }
+
+    @keyframes slideUp {
+      0% {
+        transform: translateY(100px);
+        opacity: 0;
+      }
+
+      100% {
+        transform: translateY(0px);
+        /* 向下移动 100px */
+        opacity: 1;
+        /* 渐变消失 */
+      }
+    }
+
+    /* 动画类 */
+    .hide-with-animation {
+      animation: slideDown 0.5s forwards;
+      /* forwards 保持动画结束状态 */
+    }
+
+    /* 动画类 */
+    .show-with-animation {
+      animation: slideUp 0.5s forwards;
+      /* forwards 保持动画结束状态 */
+    }
+
+    /* 滚动视图容器 */
+    .scroll-container {
+      position: absolute;
+      /* 绝对定位 */
+      bottom: 60px;
+      /* 距离顶部 50px */
+      width: 100%;
+      /* 设置容器宽度 */
+      height: 300px;
+      /* 设置容器高度 */
+      overflow-y: auto;
+      /* 启用垂直滚动 */
+      border: 1px solid rgba(0, 0, 0, 0.0);
+      /* 添加边框（可选） */
+      background: rgba(0, 0, 0, 0.0);
+      /* 半透明背景 */
+      padding: 10px;
+      box-sizing: border-box;
+    }
+
+    /* 自定义滚动条样式 */
+    .scroll-container::-webkit-scrollbar {
+      width: 8px;
+      /* 设置滚动条宽度 */
+    }
+
+    .scroll-container::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.0);
+      /* 滚动条轨道颜色 */
+      border-radius: 4px;
+    }
+
+    .scroll-container::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.3);
+      /* 滚动条滑块颜色 */
+      border-radius: 4px;
+    }
+
+    .scroll-container::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 0, 0, 0.5);
+      /* 鼠标悬停时滑块颜色 */
+    }
+
+    /* 左右元素容器 */
+    .item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      /* 元素之间的间距 */
+    }
+
+    /* 左边元素样式 */
+    .left {
+      background-color: rgba(247, 225, 101, 0.8);
+
+      padding: 10px;
+      border-radius: 5px;
+
+      margin-right: 10px;
+      color: black;
+      max-width: 70%;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+      box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.2);
+      /* 添加阴影 */
+    }
+
+    /* 右边元素样式 */
+    .right {
+      background-color: rgba(100, 237, 237, 0.8);
+      /* 半透明蓝色 */
+      padding: 10px;
+      border-radius: 5px;
+
+      margin-right: 0px;
+      color: black;
+      max-width: 70%;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+      box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.2);
+      /* 添加阴影 */
+    }
+
+    /* 靠左对齐 */
+    .align-left {
+      justify-content: flex-start;
+      /* 靠左 */
+    }
+
+    /* 靠右对齐 */
+    .align-right {
+      justify-content: flex-end;
+      /* 靠右 */
+    }
+
+
+
+
+
+
+    #userInput {
+
+      margin-left: -10px;
+      flex: 1;
+      /* 输入框占据剩余空间 */
+      padding: 10px;
+      font-size: 16px;
+      border: none;
+      /* 去掉默认边框 */
+      border-radius: 4px;
+      outline: none;
+      /* 去掉聚焦时的外边框 */
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      /* 添加阴影 */
+      transition: box-shadow 0.3s ease;
+      box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.2);
+      /* 添加阴影 */
+      /* 添加阴影过渡效果 */
+    }
+
+    #userInput:focus {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      /* 聚焦时阴影加深 */
+    }
+
+    #submitButton {
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.2);
+      /* 添加阴影 */
+    }
+
+    #submitButton:hover {
+      background-color: #0056b3;
+      /* 鼠标悬停时改变按钮颜色 */
+    }
+
+    #switchMode {
+      margin-left: -10px;
+      padding: 10px 10px;
+      font-size: 16px;
+      background: none;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #switchMode img {
+
+      box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    video,
+    canvas {}
+
+    #video {
+      position: absolute;
+      top: -9999px;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      object-fit: contain;
+    }
+
+    video::-webkit-media-controls-picture-in-picture-button {
+      display: none;
+    }
+
+    #canvas_video {
+      width: auto;
+      height: 100vh;
+    }
+
+    #canvas_gl {
+      position: absolute;
+      top: -9999px;
+      left: -9999px;
+      width: 128px;
+      height: 128px;
+    }
+
+
+    #screen {
+      position: absolute;
+      bottom: -1000;
+      right: -1000;
+      width: 1px;
+      height: 1px;
+    }
+
+    #uploadButton {
+      width: 100%;
+      height: 50px;
+      margin-top: 10px;
+    }
+
+
+
+
+
+    #overlayButton {
+      pointer-events: none;
+      position: fixed;
+      /* 固定定位 */
+      top: 0;
+      left: 0;
+      width: 100%;
+      /* 宽度 100% */
+      height: 100%;
+      /* 高度 100% */
+      background-color: rgba(0, 0, 0, 0.5);
+      /* 半透明背景 */
+      display: flex;
+      justify-content: center;
+      flex-direction: column;
+      /* 水平居中 */
+      align-items: center;
+      /* 垂直居中 */
+      font-size: 30px;
+      color: white;
+      cursor: pointer;
+      /* 鼠标指针为手型 */
+      z-index: 1000;
+      /* 确保在最上层 */
+    }
+
+    #overlayButton .loading {
+      font-size: 30px;
+    }
+
+    #overlayButton .loading::after {
+      content: '...';
+      display: inline-block;
+      width: 20px;
+      animation: dots 1.5s infinite;
+    }
+
+    /* 定义动画 */
+    @keyframes dots {
+
+      0%,
+      20% {
+        content: '.';
+      }
+
+      40% {
+        content: '..';
+      }
+
+      60% {
+        content: '...';
+      }
+
+      80%,
+      100% {
+        content: '';
+      }
+    }
+
+
+
+    /* 按钮文字样式 */
+    #overlayButton span {
+      padding: 20px 40px;
+      background-color: rgba(255, 255, 255, 0.0);
+      /* 半透明背景 */
+      border-radius: 8px;
+      font-size: 30px;
+      transition: background-color 0.3s ease;
+      /* 过渡效果 */
+    }
+
+    /* 鼠标悬停效果 */
+    #overlayButton:hover span {
+      background-color: rgba(255, 255, 255, 0.0);
+      /* 背景变亮 */
+    }
+
+
+
+    /* 覆盖全屏的视频容器 */
+    #videoOverlay {
+      position: fixed;
+      /* 固定定位 */
+      top: 0;
+      left: 0;
+      width: 100%;
+      /* 宽度 100% */
+      height: 100%;
+      /* 高度 100% */
+      background-color: black;
+      /* 背景为黑色 */
+      display: flex;
+      justify-content: center;
+      /* 水平居中 */
+      align-items: center;
+      /* 垂直居中 */
+      z-index: 1000;
+      /* 确保在最上层 */
+    }
+
+    /* 视频样式 */
+    #videoOverlay video {
+      width: auto;
+      /* 视频宽度 100% */
+      height: 100vh;
+      /* 视频高度 100% */
+      object-fit: cover;
+      /* 保持视频比例，覆盖整个容器 */
+    }
+
+    /* 提示文字样式 */
+    #videoOverlay .hint {
+      position: absolute;
+      bottom: 20px;
+      color: white;
+      font-size: 18px;
+      text-align: center;
+      width: 100%;
+    }
+
+
+
+
+
+    .voiceInfo {
+      flex: 1;
+      /* 输入框占据剩余空间 */
+      padding: 10px;
+      font-size: 16px;
+      border: none;
+      /* 去掉默认边框 */
+      border-radius: 4px;
+      outline: none;
+      /* 去掉聚焦时的外边框 */
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      /* 添加阴影 */
+      transition: box-shadow 0.3s ease;
+      box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.2);
+      /* 添加阴影 */
+      /* 添加阴影过渡效果 */
+      display: flex;
+      /* 使用 Flexbox 布局 */
+      justify-content: center;
+      /* 水平居中 */
+      align-items: center;
+      /* 垂直居中 */
+      text-align: center;
+      /* 文字内容居中 */
+    }
+
+
+    .poster {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100vh;
+      background-image: url('image/bg.jpg');
+      background-size: cover;
+      background-position: center;
+      z-index: 3;
+    }
+
+
+    #globalErrors {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      width: 350px;
+      z-index: 100000;
+    }
+
+    .alert {
+      padding: 15px;
+      margin-bottom: 10px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+    }
+
+    .alert-danger {
+      color: #a94442;
+      background-color: #f2dede;
+      border-color: #ebccd1;
+    }
+
+    .close {
+      float: right;
+      font-size: 21px;
+      font-weight: bold;
+      line-height: 1;
+      color: #000;
+      text-shadow: 0 1px 0 #fff;
+      opacity: 0.2;
+      cursor: pointer;
+    }
+
+    #canvasEl {
+      position: absolute;
+      left: -9999px;
+      /* 移出可视区域 */
+      top: -9999px;
+      /* 保持canvas正常尺寸 */
+      width: 300px;
+      height: 150px;
+    }
+
+
+    
+
+
+    #camera-container {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      width: 120px;
+      height: 160px;
+      border-radius: 15px;
+      overflow: hidden;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      background-color: #f0f0f0;
+      cursor: move;
+      z-index: 1000;
+    }
+
+    #camera-view {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* 隐藏画中画按钮 */
+    #camera-view::-webkit-media-controls-overlay-play-button,
+    #camera-view::-webkit-media-controls-picture-in-picture-button {
+      display: none !important;
+    }
+
+
+
+    #camera-toggle-btn {
+      position: absolute;
+      bottom: 5px;
+      right: 5px;
+      width: 30px;
+      height: 30px;
+      background-color: rgba(0, 0, 0, 0.5);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      z-index: 1001;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      backdrop-filter: blur(5px);
+    }
+
+    #camera-toggle-btn:active {
+      background-color: rgba(0, 0, 0, 0.7);
+    }
+    
+  </style>
+
+</head>
+
+<body>
+
+  <div class="poster"></div>
+  <figure style="overflow:visible;" id="loadingSpinner">
+    <strong>正在对接系统...</strong>
+  </figure>
+
+ 
+  <canvas id="canvasEl"></canvas>
+
+  <canvas id="canvas_video"></canvas>
+
+  <canvas id="canvas_gl" width="128" height="128"></canvas>
+
+  <div class="container" id="TextInputDiv">
+    <button id="switchMode" name="switchVoice">
+      <img src="image/voice.png" alt="语音输入" width="40" height="40" />
+    </button>
+    <input type="text" id="userInput" placeholder="请输入...">
+    <button id="submitButton">发送</button>
+  </div>
+
+
+
+  <button name="switchText" style=" 
+    background: none;
+    border: none;
+    position: absolute; 
+    width: 100px; 
+    height: 100px;  
+    bottom: 20px; 
+    right: 10px;
+    z-index: 2; 
+  " id="VoiceInputDiv">
+    <img src="image/text.png" alt="语音输入" width="80" height="80" />
+  </button>
+
+
+  <div id="screen"></div>
+
+  <div class="scroll-container" id="scrollContainer">
+
+  </div>
+
+  <div id="videoOverlay">
+    <video autoplay="true" muted loop playsinline="true" x5-playsinline="true" webkit-playsinline="true"
+      mediatype="video">
+      <source src="assets/example.webm" type="video/webm">
+      您的浏览器不支持视频播放。
+    </video>
+  </div>
+
+  <div id="overlayButton">
+    <span style="font-size: 25px; position: relative; top: -100px; ">正在寻找形象</span>
+    <span class="loading">请稍后</span>
+  </div>
+
+
+  <!-- <div id="globalErrors"></div> -->
+
+  <script src="https://2dhuman-1309252778.cos.ap-guangzhou.myqcloud.com/dll/m.js">   </script>
+  <script src="js_source/humanLogic.js">   </script>
+  <script src="jsCode15/zip.js"></script>
+  <script src="jsCode15/v.js"></script>
+  <script src="jsCode15/opengl.js"></script>
+  <script src="jsCode15/logic.js"></script>
+  <script src="jsCode15/loadMode1.js"></script>
+  <script src="jsCode15/loadMode2.js"></script>
+  <script src="jsCode15/load.js"></script>
+<!-- 
+  <script>
+    window.addEventListener('error', function (event) {
+      const errorMessage = `
+                错误信息: ${event.message}<br>
+                错误文件: ${event.filename}<br>
+                错误行号: ${event.lineno}<br>
+                错误列号: ${event.colno}<br>
+                错误堆栈: ${event.error ? event.error.stack : '无'}
+            `;
+
+      // 将错误信息显示在页面上
+      showError(errorMessage);
+    });
+
+    // 显示错误函数
+    function showError(error) {
+      const errorsContainer = document.getElementById('globalErrors');
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'alert alert-danger';
+      errorDiv.innerHTML = error;
+      errorsContainer.appendChild(errorDiv);
+
+    }
+ 
+
+    // 捕获未处理的Promise rejection
+    window.addEventListener('unhandledrejection', event => {
+      // 提取错误原因
+      const reason = event.reason;
+
+      // 构建详细错误信息
+      let errorMessage = 'Promise 错误: ';
+      let stackTrace = '无';
+
+      if (reason instanceof Error) {
+        // 标准 Error 对象
+        errorMessage += reason.message;  // 错误消息
+        stackTrace = reason.stack || '无'; // 堆栈信息
+      } else if (typeof reason === 'object' && reason !== null) {
+        // 普通对象（如从服务器返回的错误对象）
+        errorMessage += JSON.stringify(reason);
+      } else {
+        // 字符串或其他基本类型
+        errorMessage += reason;
+      }
+
+      // 组合最终信息
+      const fullErrorMessage = `
+  ${errorMessage}<br>
+  错误堆栈: ${stackTrace}
+`;
+
+showError(fullErrorMessage);
+    });
+ 
+  </script> -->
+</body>
+
+</html>
