@@ -1,4 +1,4 @@
-# 2D数字人项目 (2D Digital Human)
+# Windows2Dhuman - 2D数字人项目
 
 ## 项目简介
 
@@ -41,8 +41,8 @@
 
 1. **克隆项目**
    ```bash
-   git clone <repository-url>
-   cd 2dHuman
+   git clone https://github.com/skyconnfig/Windows2Dhuman.git
+   cd Windows2Dhuman
    ```
 
 2. **创建Python虚拟环境**
@@ -90,7 +90,7 @@
 ## 项目结构
 
 ```
-2dHuman/
+Windows2Dhuman/
 ├── app.py                 # 主应用入口
 ├── requirements.txt       # Python依赖
 ├── package.json          # Node.js依赖
