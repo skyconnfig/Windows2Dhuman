@@ -598,13 +598,11 @@ async function disponseFrame() {
     }
 
     if (logo_enabled) {
-
-        ctx_video.fillStyle = 'white';
-        ctx_video.font = '30px Arial';
-        ctx_video.textAlign = 'right';
-        ctx_video.fillText(`作者微信：lkz4251`, canvas_video.width * 0.5 + 150, 50);
-
- 
+        // 水印功能已禁用
+        // ctx_video.fillStyle = 'white';
+        // ctx_video.font = '30px Arial';
+        // ctx_video.textAlign = 'right';
+        // ctx_video.fillText(`作者微信：lkz4251`, canvas_video.width * 0.5 + 150, 50);
     }
 
     processDataSet(frameIndex);

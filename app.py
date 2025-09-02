@@ -796,7 +796,6 @@ def create_interface():
         gr.Markdown("""
                 - 此平台是一个公开免费训练数字人的案例
                 - 你可以上传自己的形象，配置声音，修改身份信息，训练就得到一个永久的的网站地址
-                - 如果任何需求请联系微信：lkz4251
                 """)
         
     return demo
@@ -804,4 +803,16 @@ def create_interface():
 # 创建 Gradio 界面并启动
 if __name__ == "__main__":
     demo = create_interface()
-    demo.launch(server_name="0.0.0.0", server_port=8080,favicon_path="favicon.ico",root_path="/mm")
+    try:
+        demo.launch(server_name="0.0.0.0", server_port=7860, favicon_path="favicon.ico", share=False)
+    except Exception as e:
+        print(f"启动失败，尝试其他端口: {e}")
+        try:
+            demo.launch(server_name="0.0.0.0", server_port=7861, favicon_path="favicon.ico", share=False)
+        except Exception as e2:
+            print(f"端口7861也失败，尝试端口7862: {e2}")
+            try:
+                demo.launch(server_name="0.0.0.0", server_port=7862, favicon_path="favicon.ico", share=False)
+            except Exception as e3:
+                print(f"所有本地端口都失败，使用share模式: {e3}")
+                demo.launch(share=True, favicon_path="favicon.ico")
