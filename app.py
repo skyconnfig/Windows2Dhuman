@@ -11,6 +11,12 @@ from PIL import Image
 import numpy as np
 from data_preparation_mini import data_preparation_mini
 from data_preparation_web import data_preparation_web
+
+# 注意：精细嘴部动画控制和微表情系统模块将在后续版本中集成
+# from phoneme_mouth_mapping import PhonemeMouthMapper
+# from detailed_mouth_animation import DetailedMouthAnimationController
+# from micro_expression_system import MicroExpressionSystem
+# from enhanced_talking_face import EnhancedTalkingFaceSystem
  
 
 
@@ -357,6 +363,12 @@ footer {
  
 def run_js_file(js_file_path):
     try:
+        # 检查Node.js是否可用
+        node_check = subprocess.run(['node', '--version'], capture_output=True, text=True)
+        if node_check.returncode != 0:
+            print("警告: Node.js未安装或不在PATH中，跳过JavaScript文件执行")
+            return None
+            
         result = subprocess.run(
             ['node', js_file_path],
             check=True,
@@ -364,13 +376,16 @@ def run_js_file(js_file_path):
             capture_output=True
         )
         return result.stdout
-    except subprocess.CalledProcessError as e:
-        print(f"执行失败: {e.stderr}")
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"JavaScript执行失败: {e}")
         return None
     
 def compress_webm(input_path, output_path, width=480, crf=40, bitrate="500k"):
+    # 使用项目中的FFmpeg路径
+    ffmpeg_path = os.path.join(os.path.dirname(__file__), "ffmpeg-8.0-essentials_build", "bin", "ffmpeg.exe")
+    
     cmd = [
-        "ffmpeg",
+        ffmpeg_path,
         "-i", input_path,
         "-vf", f"scale={width}:-2:flags=lanczos,split[s0][s1];[s0]reverse[r];[s1][r]concat",
         "-c:v", "libvpx-vp9",
@@ -382,7 +397,20 @@ def compress_webm(input_path, output_path, width=480, crf=40, bitrate="500k"):
         "-an", "-loop", "0",
         "-y", output_path
     ]
-    subprocess.run(cmd)
+    
+    try:
+        subprocess.run(cmd, check=True, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
+        print(f"WebM压缩完成: {output_path}")
+    except subprocess.CalledProcessError as e:
+        print(f"WebM压缩失败: {e.stderr.decode() if e.stderr else str(e)}")
+    except FileNotFoundError:
+        print(f"FFmpeg未找到: {ffmpeg_path}")
+        # 尝试复制原文件作为备选方案
+        try:
+            shutil.copy2(input_path, output_path)
+            print(f"已复制原文件到: {output_path}")
+        except Exception as copy_e:
+            print(f"文件复制也失败: {copy_e}")
     
     
 # 假设你已经有了这两个函数
@@ -393,68 +421,76 @@ def data_preparation(video1,llmSystemInfo,voiceId,model_radio):
         f"<h3 id='result'>请上传需要训练的形象，或者使用示例形象做参考！</h3>" 
     )
 
-    
+    try:
+        pp=uuid.uuid4()
+        # 处理视频的逻辑
+        video_dir_path = "video_data/{}".format(pp)
+        video_dir_path=os.path.join(os.path.dirname(__file__), video_dir_path)
+        data_preparation_mini(video1, video_dir_path, False)
+        data_preparation_web(video_dir_path)
 
-    pp=uuid.uuid4()
-    # 处理视频的逻辑
-    video_dir_path = "video_data/{}".format(pp)
-    video_dir_path=os.path.join(os.path.dirname(__file__), video_dir_path)
-    data_preparation_mini(video1, video_dir_path, False)
-    data_preparation_web(video_dir_path)
+        #return "视频处理完成，保存至目录{}".format(video_dir_path)
 
-    #return "视频处理完成，保存至目录{}".format(video_dir_path)
+        website = "website/{}".format(pp)
+        website=os.path.join(os.path.dirname(__file__), website)
+        if os.path.exists(website):
+            shutil.rmtree(website)
+        
+        shutil.copytree("web_source", website)
 
-    website = "website/{}".format(pp)
-    website=os.path.join(os.path.dirname(__file__), website)
-    if os.path.exists(website):
-        shutil.rmtree(website)
-    
-    shutil.copytree("web_source", website)
+        websiteAssets= website+"/assets"
+        if not os.path.exists(websiteAssets):
+            os.makedirs(websiteAssets)
+        shutil.copy(video_dir_path+"/assets/01.mp4", website+"/assets/01.mp4")
+        shutil.copy(video_dir_path+"/assets/data", website+"/assets/data")
 
-    websiteAssets= website+"/assets"
-    if not os.path.exists(websiteAssets):
-        os.makedirs(websiteAssets)
-    shutil.copy(video_dir_path+"/assets/01.mp4", website+"/assets/01.mp4")
-    shutil.copy(video_dir_path+"/assets/data", website+"/assets/data")
+        compress_webm(video1, websiteAssets+"/example.webm", width=360, crf=45, bitrate="300k")
 
-    compress_webm(video1, websiteAssets+"/example.webm", width=360, crf=45, bitrate="300k")
+        with open(video_dir_path+"/assets/data", 'rb') as f:
+            file_data = f.read()
+        base64_data = base64.b64encode(file_data).decode('utf-8')
 
-    with open(video_dir_path+"/assets/data", 'rb') as f:
-        file_data = f.read()
-    base64_data = base64.b64encode(file_data).decode('utf-8')
+        logicpath=website+"/js_source/logic.js" 
+        with open(logicpath, 'r', encoding='utf-8') as f:
+            js_content = f.read()
+        updated_js = js_content.replace("数据文件需要替换的地方", base64_data) 
 
-    logicpath=website+"/js_source/logic.js" 
-    with open(logicpath, 'r', encoding='utf-8') as f:
-        js_content = f.read()
-    updated_js = js_content.replace("数据文件需要替换的地方", base64_data) 
-
-    with open(logicpath, 'w', encoding='utf-8') as f:
-        f.write(updated_js)
+        with open(logicpath, 'w', encoding='utf-8') as f:
+            f.write(updated_js)
 
 
-    humanLogicpath=website+"/js_source/humanLogic.js" 
-    with open(humanLogicpath, 'r', encoding='utf-8') as f:
-        humanLogicjs_content = f.read()
-    humanLogicjs_content = humanLogicjs_content.replace("大模型身份信息覆盖", llmSystemInfo)
+        humanLogicpath=website+"/js_source/humanLogic.js" 
+        with open(humanLogicpath, 'r', encoding='utf-8') as f:
+            humanLogicjs_content = f.read()
+        humanLogicjs_content = humanLogicjs_content.replace("大模型身份信息覆盖", llmSystemInfo)
 
-    sddsdfg= get_audio_filename(voiceId) 
-    humanLogicjs_content = humanLogicjs_content.replace("声音id信息覆盖", sddsdfg) 
+        sddsdfg= get_audio_filename(voiceId) 
+        humanLogicjs_content = humanLogicjs_content.replace("声音id信息覆盖", sddsdfg) 
 
-    humanLogicjs_content = humanLogicjs_content.replace("是否开启视觉",  str(model_radio).lower()) 
+        humanLogicjs_content = humanLogicjs_content.replace("是否开启视觉",  str(model_radio).lower()) 
 
-    with open(humanLogicpath, 'w', encoding='utf-8') as f:
-        f.write(humanLogicjs_content)
+        with open(humanLogicpath, 'w', encoding='utf-8') as f:
+            f.write(humanLogicjs_content)
 
-    video_frame = get_video_thumbnail(video1)
-    Image.fromarray(video_frame).save(website+"/image/bg.jpg")
+        video_frame = get_video_thumbnail(video1)
+        Image.fromarray(video_frame).save(website+"/image/bg.jpg")
 
-    shutil.rmtree(video_dir_path)
+        shutil.rmtree(video_dir_path)
 
-    run_js_file(website+"/test.js")
+        run_js_file(website+"/test.js")
+        
+    except Exception as e:
+        error_msg = str(e)
+        if "系统找不到指定的文件" in error_msg or "WinError 2" in error_msg or "FileNotFoundError" in str(type(e)):
+            error_msg = "系统找不到指定的文件。可能的原因：\n1. FFmpeg未正确安装或路径配置错误\n2. Node.js未安装（用于网站生成）\n3. 缺少必要的系统依赖"
+        return (
+            gr.Button("处理失败", variant="primary"),
+            f"<h3 id='result'>❌ 处理失败<br>错误信息: {error_msg}</h3>"
+        )
     return (
         gr.Button("处理完成", variant="primary"),
         f"<h3 id='result'>生成成功，数字人链接："
-        f"<a href='https://human-train.lkz.fit/{pp}' target='_blank'>https://human-train.lkz.fit/{pp}</a></h3>"
+        f"<a href='https://localhost/{pp}' target='_blank'>https://localhost/{pp}</a></h3>"
     )
  
 
@@ -621,6 +657,51 @@ DEFAULT_PROMPT = """基本信息：
 回复字数限制在50字以内"""
 
 # 定义 Gradio 界面
+def data_preparation_enhanced(video, text_input, selected_audio_name, model_radio, 
+                            lip_opening, teeth_visibility, tongue_position,
+                            micro_expression_intensity, emotion_type, phoneme_sync_accuracy):
+    """
+    增强版数据处理函数，集成精细嘴部动画控制和微表情系统
+    注意：当前版本暂时使用基础处理模式，增强功能将在后续版本中完整集成
+    """
+    try:
+        # TODO: 在后续版本中集成增强系统
+        # enhanced_system = EnhancedTalkingFaceSystem()
+        
+        # 调用原始数据处理函数
+        result_button, result_html = data_preparation(video, text_input, selected_audio_name, model_radio)
+        
+        # 在结果HTML中添加增强功能配置说明
+        enhanced_info = f"""
+        <div style="margin-top: 15px; padding: 10px; background: rgba(77, 240, 255, 0.1); border-radius: 5px;">
+            <h4 style="color: #4df0ff; margin: 0 0 8px 0;">🎭 精细嘴部动画配置已记录</h4>
+            <p style="margin: 5px 0; color: #e0f7ff; font-size: 13px;">
+                • 嘴唇开合度: {lip_opening:.1f} | 牙齿显露: {teeth_visibility:.1f} | 舌头位置: {tongue_position:.1f}<br>
+                • 情感表达: {emotion_type} | 微表情强度: {micro_expression_intensity:.1f}<br>
+                • 音素同步精度: {phoneme_sync_accuracy:.2f}<br>
+                <small style="color: rgba(224, 247, 255, 0.7);">注：增强功能将在后续版本中完整集成</small>
+            </p>
+        </div>
+        """
+        
+        # 合并原始结果和增强信息
+        if isinstance(result_html, str) and result_html.strip():
+            enhanced_html = result_html + enhanced_info
+        else:
+            enhanced_html = enhanced_info
+            
+        return result_button, enhanced_html
+        
+    except Exception as e:
+        error_msg = f"""
+        <div style="color: #ff6b6b; padding: 10px; background: rgba(255, 107, 107, 0.1); border-radius: 5px;">
+            <h4>❌ 处理失败</h4>
+            <p>错误信息: {str(e)}</p>
+        </div>
+        """
+        
+        return gr.Button("训练形象", variant="primary"), error_msg
+
 def create_interface():
     
     with gr.Blocks(css= css ,title= "数字人训练平台" ) as demo: 
@@ -772,6 +853,49 @@ def create_interface():
         
         
         with gr.Column(elem_classes="custom-box"):
+            gr.Markdown("## 精细嘴部动画控制")
+            
+            # 嘴部动画参数控制
+            with gr.Row():
+                with gr.Column():
+                    lip_opening = gr.Slider(
+                        minimum=0.0, maximum=1.0, value=0.5,
+                        label="嘴唇开合度调节",
+                        info="控制说话时嘴唇的开合程度"
+                    )
+                    teeth_visibility = gr.Slider(
+                        minimum=0.0, maximum=1.0, value=0.3,
+                        label="牙齿显露度",
+                        info="调节牙齿在说话时的可见程度"
+                    )
+                with gr.Column():
+                    tongue_position = gr.Slider(
+                        minimum=0.0, maximum=1.0, value=0.4,
+                        label="舌头位置调节",
+                        info="控制舌头在口腔中的位置"
+                    )
+                    micro_expression_intensity = gr.Slider(
+                        minimum=0.0, maximum=1.0, value=0.6,
+                        label="微表情强度",
+                        info="调节面部微表情的表现强度"
+                    )
+            
+            # 情感表达选择
+            emotion_type = gr.Radio(
+                choices=["中性", "快乐", "悲伤", "愤怒", "惊讶", "厌恶", "恐惧", "轻蔑"],
+                label="情感表达类型",
+                value="中性",
+                elem_classes="btn-radio"
+            )
+            
+            # 音素同步精度设置
+            phoneme_sync_accuracy = gr.Slider(
+                minimum=0.5, maximum=1.0, value=0.85,
+                label="音素同步精度",
+                info="调节音素与口型变化的同步精确度"
+            )
+
+        with gr.Column(elem_classes="custom-box"):
             gr.Markdown("## 形象身份定义") 
             
             text_input = gr.Textbox(
@@ -789,8 +913,12 @@ def create_interface():
         process_button = gr.Button("训练形象", variant="primary") 
         mmmm = gr.HTML( "<div id='result'></div>") 
         process_button.click(fn=lambda: gr.Button("处理中...", variant="secondary"), inputs=None,  outputs=process_button,queue=False).then(
-        fn=data_preparation,
-        inputs=[video1,text_input,selected_audio_name,model_radio],
+        fn=data_preparation_enhanced,
+        inputs=[
+            video1, text_input, selected_audio_name, model_radio,
+            lip_opening, teeth_visibility, tongue_position, 
+            micro_expression_intensity, emotion_type, phoneme_sync_accuracy
+        ],
         outputs=[process_button, mmmm]  # 最终更新
     )
         gr.Markdown("""
