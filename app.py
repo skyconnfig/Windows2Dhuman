@@ -855,29 +855,29 @@ def create_interface():
         with gr.Column(elem_classes="custom-box"):
             gr.Markdown("## 精细嘴部动画控制")
             
-            # 嘴部动画参数控制
+            # 嘴部动画参数控制 - 优化为最自然的人类表情参数
             with gr.Row():
                 with gr.Column():
                     lip_opening = gr.Slider(
-                        minimum=0.0, maximum=1.0, value=0.5,
+                        minimum=0.0, maximum=1.0, value=0.35,
                         label="嘴唇开合度调节",
-                        info="控制说话时嘴唇的开合程度"
+                        info="控制说话时嘴唇的开合程度 (推荐: 0.35 - 自然开合)"
                     )
                     teeth_visibility = gr.Slider(
-                        minimum=0.0, maximum=1.0, value=0.3,
+                        minimum=0.0, maximum=1.0, value=0.15,
                         label="牙齿显露度",
-                        info="调节牙齿在说话时的可见程度"
+                        info="调节牙齿在说话时的可见程度 (推荐: 0.15 - 微露牙齿)"
                     )
                 with gr.Column():
                     tongue_position = gr.Slider(
-                        minimum=0.0, maximum=1.0, value=0.4,
+                        minimum=0.0, maximum=1.0, value=0.25,
                         label="舌头位置调节",
-                        info="控制舌头在口腔中的位置"
+                        info="控制舌头在口腔中的位置 (推荐: 0.25 - 自然舌位)"
                     )
                     micro_expression_intensity = gr.Slider(
-                        minimum=0.0, maximum=1.0, value=0.6,
+                        minimum=0.0, maximum=1.0, value=0.25,
                         label="微表情强度",
-                        info="调节面部微表情的表现强度"
+                        info="调节面部微表情的表现强度 (推荐: 0.25 - 自然微动)"
                     )
             
             # 情感表达选择
@@ -888,11 +888,11 @@ def create_interface():
                 elem_classes="btn-radio"
             )
             
-            # 音素同步精度设置
+            # 音素同步精度设置 - 优化为最佳同步效果
             phoneme_sync_accuracy = gr.Slider(
-                minimum=0.5, maximum=1.0, value=0.85,
+                minimum=0.5, maximum=1.0, value=0.92,
                 label="音素同步精度",
-                info="调节音素与口型变化的同步精确度"
+                info="调节音素与口型变化的同步精确度 (推荐: 0.92 - 高精度同步)"
             )
 
         with gr.Column(elem_classes="custom-box"):
