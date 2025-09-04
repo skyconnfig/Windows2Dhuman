@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(/D:\\daima\\LXShuman\\2dHuman/**)",
+      "Read(/D:\\daima\\LXShuman\\2dHuman/**)",
+      "Read(/D:\\daima\\LXShuman\\2dHuman/**)",
+      "Read(/D:\\daima\\LXShuman\\2dHuman\\talkingface\\models/**)",
+      "Read(/D:\\daima\\LXShuman\\2dHuman\\talkingface\\models/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

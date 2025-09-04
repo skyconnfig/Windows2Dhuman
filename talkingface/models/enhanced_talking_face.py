@@ -12,13 +12,22 @@ from typing import Dict, List, Tuple, Optional, Union
 import cv2
 from scipy.interpolate import interp1d
 import librosa
+import sys
+import os
+
+# 添加train_audio路径以导入melspectrogram函数
+current_dir = os.path.dirname(os.path.abspath(__file__))
+train_audio_path = os.path.join(current_dir, '..', '..', 'train_audio')
+sys.path.append(train_audio_path)
+from audio import melspectrogram
 
 # 导入自定义模块
 from .detailed_mouth_animation import DetailedMouthAnimationController, TeethAndTongueRenderer
 from .micro_expression_system import MicroExpressionSystem, FacialMuscleSimulator, EmotionType
-from .phoneme_mouth_mapping import PhonemeMouthMapper
-from ..audio import melspectrogram
-from ..models.audio2bs_lstm import Audio2Feature
+from .advanced_micro_expression_system import AdvancedMicroExpressionSystem, MicroExpressionConfig
+from .lip_sync_optimizer import LipSyncOptimizer, RealTimeLipSyncOptimizer
+from .phoneme_mouth_mapping import PhonemeToMouthMapper
+from .audio2bs_lstm import Audio2Feature
 
 class EnhancedTalkingFaceSystem:
     """
@@ -33,10 +42,29 @@ class EnhancedTalkingFaceSystem:
         
         # 初始化各个子系统
         self.mouth_controller = DetailedMouthAnimationController()
-        self.micro_expression_system = MicroExpressionSystem()
+        
+        # 创建高级微表情系统配置
+        micro_config = MicroExpressionConfig(
+            breathing_amplitude=0.012,
+            breathing_frequency=0.28,
+            blink_frequency=0.35,
+            blink_duration=0.12,
+            micro_movement_amplitude=0.006,
+            emotion_transition_speed=0.6,
+            asymmetry_factor=0.03,
+            natural_variation_strength=0.025
+        )
+        
+        # 初始化高级微表情系统
+        self.advanced_micro_system = AdvancedMicroExpressionSystem(micro_config)
+        self.micro_expression_system = MicroExpressionSystem()  # 保持兼容性
         self.muscle_simulator = FacialMuscleSimulator()
-        self.phoneme_mapper = PhonemeMouthMapper()
+        self.phoneme_mapper = PhonemeToMouthMapper()
         self.teeth_tongue_renderer = TeethAndTongueRenderer()
+        
+        # 初始化唇形同步优化器
+        self.lip_sync_optimizer = LipSyncOptimizer()
+        self.realtime_lip_sync = RealTimeLipSyncOptimizer(self.lip_sync_optimizer)
         
         # 加载音频到特征模型
         if model_path:
@@ -48,6 +76,13 @@ class EnhancedTalkingFaceSystem:
         self.config = {
             'sample_rate': 16000,
             'hop_length': 160,
+            'frame_rate': 25,
+            'audio_buffer_size': 1024,
+            'lip_sync_lookahead': 3,  # 帧数
+            'emotion_smoothing': 0.8,
+            'micro_expression_enabled': True,
+            'advanced_breathing': True,
+            'natural_asymmetry': True,
             'win_length': 400,
             'n_mels': 80,
             'target_fps': 25,
@@ -319,7 +354,8 @@ class EnhancedTalkingFaceSystem:
                                  emotion: EmotionType = EmotionType.NEUTRAL,
                                  emotion_intensity: float = 0.5) -> Dict[str, List[Dict[str, float]]]:
         """
-        从音频文件生成完整的动画参数
+        处理音频文件，生成完整的动画数据
+        使用高级微表情系统和唇形同步优化
         
         Args:
             audio_path: 音频文件路径
@@ -327,35 +363,127 @@ class EnhancedTalkingFaceSystem:
             emotion_intensity: 情感强度
             
         Returns:
-            包含嘴部动画和微表情的完整参数
+            包含嘴部动画和微表情的完整动画数据
         """
-        # 提取音频特征
-        audio_features = self.extract_audio_features(audio_path)
-        
-        # 提取音素序列
-        phoneme_sequence = self.extract_phonemes_from_audio(audio_path)
-        
-        # 生成嘴部动画
-        mouth_animation = self.generate_mouth_animation(
-            phoneme_sequence, emotion, emotion_intensity
-        )
-        
-        # 生成微表情
-        micro_expressions = None
-        if self.config['enable_micro_expressions']:
-            micro_expressions = self.generate_micro_expressions(
-                phoneme_sequence, emotion, emotion_intensity
+        try:
+            # 设置高级微表情系统的目标情感
+            self.advanced_micro_system.set_emotion(emotion, duration=2.0)
+            
+            # 提取高精度音频特征
+            audio_features = self.lip_sync_optimizer.extract_audio_features(audio_path)
+            
+            # 提取优化的音素序列
+            phoneme_sequence = self.lip_sync_optimizer.extract_phonemes(audio_path)
+            
+            # 进行时序对齐优化
+            aligned_phonemes = self.lip_sync_optimizer.align_phonemes_with_audio(
+                phoneme_sequence, audio_features
             )
-        
-        # 缓存结果
-        self.animation_cache = {
-            'mouth_animation': mouth_animation,
-            'micro_expressions': micro_expressions,
-            'phoneme_sequence': phoneme_sequence,
-            'audio_features': audio_features
-        }
-        
-        return self.animation_cache
+            
+            # 生成基础嘴部动画
+            mouth_animation = self.generate_mouth_animation(
+                aligned_phonemes, emotion, emotion_intensity
+            )
+            
+            # 应用唇形同步优化
+            optimized_mouth_animation = self.lip_sync_optimizer.optimize_lip_sync(
+                mouth_animation, audio_features, aligned_phonemes
+            )
+            
+            # 生成高级微表情序列
+            advanced_micro_expressions = []
+            frame_count = len(optimized_mouth_animation)
+            
+            for frame_idx in range(frame_count):
+                # 更新高级微表情系统
+                micro_params = self.advanced_micro_system.update_frame(1/self.config['frame_rate'])
+                
+                # 添加音频驱动的微表情调整
+                if frame_idx < len(audio_features):
+                    audio_intensity = np.mean(np.abs(audio_features[frame_idx]))
+                    micro_params['audio_driven_intensity'] = audio_intensity
+                    
+                    # 根据音频强度调整微表情
+                    micro_params['eyebrow_raise'] += audio_intensity * 0.1
+                    micro_params['eye_squint'] += audio_intensity * 0.05
+                
+                advanced_micro_expressions.append(micro_params)
+            
+            # 生成传统微表情（保持兼容性）
+            traditional_micro_expressions = None
+            if self.config['enable_micro_expressions']:
+                traditional_micro_expressions = self.generate_micro_expressions(
+                    aligned_phonemes, emotion, emotion_intensity
+                )
+            
+            # 应用情感调整到嘴部动画
+            final_mouth_animation = self._apply_emotion_to_mouth_animation(
+                optimized_mouth_animation, emotion, emotion_intensity
+            )
+            
+            # 计算同步质量指标
+            sync_quality = self.lip_sync_optimizer.calculate_sync_quality(
+                final_mouth_animation, audio_features, aligned_phonemes
+            )
+            
+            # 缓存结果
+            self.animation_cache = {
+                'mouth_animation': final_mouth_animation,
+                'micro_expressions': traditional_micro_expressions,
+                'advanced_micro_expressions': advanced_micro_expressions,
+                'audio_features': audio_features.tolist() if isinstance(audio_features, np.ndarray) else audio_features,
+                'phoneme_sequence': aligned_phonemes,
+                'original_phonemes': phoneme_sequence,
+                'emotion': emotion.value,
+                'emotion_intensity': emotion_intensity,
+                'sync_quality': sync_quality,
+                'optimization_applied': True
+            }
+            
+            return self.animation_cache
+            
+        except Exception as e:
+            print(f"处理音频时出错: {e}")
+            # 降级到传统处理方式
+            try:
+                audio_features = self.extract_audio_features(audio_path)
+                phoneme_sequence = self.extract_phonemes_from_audio(audio_path)
+                mouth_animation = self.generate_mouth_animation(
+                    phoneme_sequence, emotion, emotion_intensity
+                )
+                micro_expressions = None
+                if self.config['enable_micro_expressions']:
+                    micro_expressions = self.generate_micro_expressions(
+                        phoneme_sequence, emotion, emotion_intensity
+                    )
+                
+                self.animation_cache = {
+                    'mouth_animation': mouth_animation,
+                    'micro_expressions': micro_expressions,
+                    'advanced_micro_expressions': [],
+                    'audio_features': audio_features.tolist() if isinstance(audio_features, np.ndarray) else audio_features,
+                    'phoneme_sequence': phoneme_sequence,
+                    'emotion': emotion.value,
+                    'emotion_intensity': emotion_intensity,
+                    'sync_quality': {'error': 'optimization_failed'},
+                    'optimization_applied': False,
+                    'fallback_used': True
+                }
+                
+                return self.animation_cache
+                
+            except Exception as fallback_error:
+                self.animation_cache = {
+                    'mouth_animation': [],
+                    'micro_expressions': [],
+                    'advanced_micro_expressions': [],
+                    'audio_features': [],
+                    'phoneme_sequence': [],
+                    'error': str(e),
+                    'fallback_error': str(fallback_error)
+                }
+                
+                return self.animation_cache
     
     def apply_animation_to_landmarks(self, 
                                    landmarks: np.ndarray,
@@ -363,6 +491,7 @@ class EnhancedTalkingFaceSystem:
                                    animation_data: Dict = None) -> np.ndarray:
         """
         将动画参数应用到人脸关键点
+        集成高级微表情系统和优化的唇形同步
         
         Args:
             landmarks: 原始68点人脸关键点 [68, 2]
@@ -380,7 +509,7 @@ class EnhancedTalkingFaceSystem:
         
         modified_landmarks = landmarks.copy()
         
-        # 应用嘴部动画
+        # 应用优化的嘴部动画
         mouth_animation = animation_data.get('mouth_animation', [])
         if frame_index < len(mouth_animation):
             mouth_params = mouth_animation[frame_index]
@@ -388,8 +517,19 @@ class EnhancedTalkingFaceSystem:
                 modified_landmarks, mouth_params
             )
         
-        # 应用微表情
-        if self.config['enable_micro_expressions']:
+        # 应用高级微表情系统（优先）
+        advanced_micro_expressions = animation_data.get('advanced_micro_expressions', [])
+        if (self.config.get('micro_expression_enabled', True) and 
+            advanced_micro_expressions and 
+            frame_index < len(advanced_micro_expressions)):
+            
+            micro_params = advanced_micro_expressions[frame_index]
+            modified_landmarks = self.advanced_micro_system.apply_to_landmarks(
+                modified_landmarks, micro_params
+            )
+        
+        # 应用传统微表情（作为补充或后备）
+        elif self.config['enable_micro_expressions']:
             micro_expressions = animation_data.get('micro_expressions', [])
             if frame_index < len(micro_expressions):
                 micro_params = micro_expressions[frame_index]
@@ -397,8 +537,9 @@ class EnhancedTalkingFaceSystem:
                     modified_landmarks, micro_params
                 )
         
-        # 应用肌肉模拟
-        if self.config['enable_muscle_simulation']:
+        # 应用肌肉模拟（如果启用）
+        if (self.config['enable_muscle_simulation'] and 
+            hasattr(self, 'muscle_simulator')):
             micro_expressions = animation_data.get('micro_expressions', [])
             if frame_index < len(micro_expressions):
                 micro_params = micro_expressions[frame_index]
@@ -406,7 +547,55 @@ class EnhancedTalkingFaceSystem:
                     modified_landmarks, micro_params
                 )
         
+        # 应用自然不对称效果
+        if self.config.get('natural_asymmetry', True):
+            modified_landmarks = self._apply_natural_asymmetry(
+                modified_landmarks, frame_index
+            )
+        
+        # 应用时序平滑
+        if hasattr(self, '_previous_landmarks') and self.config.get('temporal_smoothing', True):
+            smoothing_factor = self.config.get('smoothing_factor', 0.3)
+            modified_landmarks = (
+                modified_landmarks * (1 - smoothing_factor) + 
+                self._previous_landmarks * smoothing_factor
+            )
+        
+        # 缓存当前关键点用于下一帧平滑
+        self._previous_landmarks = modified_landmarks.copy()
+        
         return modified_landmarks
+    
+    def _apply_natural_asymmetry(self, landmarks: np.ndarray, frame_index: int) -> np.ndarray:
+        """
+        应用自然的面部不对称效果
+        
+        Args:
+            landmarks: 关键点数组
+            frame_index: 帧索引
+            
+        Returns:
+            调整后的关键点
+        """
+        adjusted_landmarks = landmarks.copy()
+        
+        # 计算面部中心线
+        center_x = np.mean(landmarks[:, 0])
+        
+        # 生成基于时间的微小不对称变化
+        asymmetry_strength = self.config.get('asymmetry_factor', 0.03)
+        time_factor = np.sin(frame_index * 0.1) * asymmetry_strength
+        
+        # 应用到左右两侧
+        for i, landmark in enumerate(landmarks):
+            if landmark[0] < center_x:  # 左侧
+                adjusted_landmarks[i, 0] += time_factor * 0.5
+                adjusted_landmarks[i, 1] += time_factor * 0.3
+            else:  # 右侧
+                adjusted_landmarks[i, 0] -= time_factor * 0.5
+                adjusted_landmarks[i, 1] -= time_factor * 0.3
+        
+        return adjusted_landmarks
     
     def render_enhanced_frame(self, 
                             image: np.ndarray,
@@ -522,48 +711,190 @@ class EnhancedTalkingFaceSystem:
 class RealTimeEnhancedTalkingFace:
     """
     实时增强数字人说话系统
-    支持实时音频流处理和动画生成
+    集成实时唇形同步优化和高级微表情
     """
     
     def __init__(self, enhanced_system: EnhancedTalkingFaceSystem):
         self.enhanced_system = enhanced_system
         self.audio_buffer = []
         self.animation_buffer = []
-        self.buffer_size = 1024  # 音频缓冲区大小
-        self.processing_delay = 3  # 处理延迟（帧数）
+        self.buffer_size = enhanced_system.config.get('audio_buffer_size', 1024)
         
-    def process_audio_chunk(self, audio_chunk: np.ndarray) -> Optional[Dict[str, float]]:
+        # 初始化实时处理器
+        self.realtime_lip_sync = enhanced_system.realtime_lip_sync
+        self.frame_counter = 0
+        self.last_emotion = EmotionType.NEUTRAL
+        
+        # 实时状态缓存
+        self.realtime_state = {
+            'current_phoneme': None,
+            'phoneme_progress': 0.0,
+            'audio_intensity': 0.0,
+            'micro_expression_state': {},
+            'breathing_phase': 0.0
+        }
+        
+    def process_audio_chunk(self, audio_chunk: np.ndarray, 
+                          emotion: EmotionType = None) -> Optional[Dict[str, float]]:
         """
-        处理音频块并生成动画参数
+        处理实时音频块
+        使用高级唇形同步和微表情系统
         
         Args:
             audio_chunk: 音频数据块
+            emotion: 当前情感状态
             
         Returns:
-            当前帧的动画参数（如果可用）
+            当前帧的完整动画参数
         """
-        # 添加到音频缓冲区
+        # 更新情感状态
+        if emotion and emotion != self.last_emotion:
+            self.enhanced_system.advanced_micro_system.set_emotion(emotion, duration=1.0)
+            self.last_emotion = emotion
+        
+        # 添加到缓冲区
         self.audio_buffer.extend(audio_chunk)
         
-        # 如果缓冲区足够大，处理音频
+        # 当缓冲区足够大时处理
         if len(self.audio_buffer) >= self.buffer_size:
-            # 提取特征（简化实现）
-            audio_segment = np.array(self.audio_buffer[:self.buffer_size])
-            
-            # 这里应该实现实时音素识别和动画生成
-            # 为了演示，返回简化的参数
-            animation_params = {
-                'lip_opening': np.random.random() * 0.5,
-                'teeth_visibility': np.random.random() * 0.3,
-                'tongue_position': (np.random.random() - 0.5) * 0.4
-            }
-            
-            # 移除已处理的音频
-            self.audio_buffer = self.audio_buffer[self.buffer_size//2:]
-            
-            return animation_params
+            try:
+                # 使用实时唇形同步优化器处理
+                chunk_array = np.array(self.audio_buffer[:self.buffer_size])
+                
+                # 实时特征提取
+                realtime_features = self.realtime_lip_sync.process_audio_chunk(chunk_array)
+                
+                # 更新高级微表情系统
+                micro_params = self.enhanced_system.advanced_micro_system.update_frame(
+                    1/self.enhanced_system.config['frame_rate']
+                )
+                
+                # 计算音频强度
+                audio_intensity = np.mean(np.abs(chunk_array))
+                self.realtime_state['audio_intensity'] = audio_intensity
+                
+                # 生成优化的嘴部动画参数
+                mouth_params = self._generate_realtime_mouth_params(
+                    realtime_features, audio_intensity
+                )
+                
+                # 合并所有动画参数
+                animation_params = {
+                    **mouth_params,
+                    **micro_params,
+                    'frame_index': self.frame_counter,
+                    'audio_intensity': audio_intensity,
+                    'realtime_processing': True
+                }
+                
+                # 应用实时平滑
+                animation_params = self._apply_realtime_smoothing(animation_params)
+                
+                # 移除已处理的音频（保留重叠部分）
+                overlap_size = self.buffer_size // 4
+                self.audio_buffer = self.audio_buffer[self.buffer_size - overlap_size:]
+                
+                self.frame_counter += 1
+                return animation_params
+                
+            except Exception as e:
+                print(f"实时处理出错: {e}")
+                # 降级到简化处理
+                return self._fallback_processing(chunk_array)
         
         return None
+    
+    def _generate_realtime_mouth_params(self, features: Dict, audio_intensity: float) -> Dict[str, float]:
+        """
+        生成实时嘴部动画参数
+        
+        Args:
+            features: 音频特征
+            audio_intensity: 音频强度
+            
+        Returns:
+            嘴部动画参数
+        """
+        # 基于音频特征生成嘴部参数
+        mouth_open = min(1.0, audio_intensity * 3.0)
+        
+        # 根据频谱特征调整嘴型
+        if 'spectral_centroid' in features:
+            spectral_factor = features['spectral_centroid'] / 4000.0  # 归一化
+            mouth_width = 0.3 + spectral_factor * 0.4
+        else:
+            mouth_width = 0.5
+        
+        # 牙齿和舌头可见度
+        teeth_visible = min(0.8, mouth_open * 1.2)
+        tongue_position = np.sin(self.frame_counter * 0.3) * 0.1  # 自然摆动
+        
+        # 嘴角调整
+        corner_pull = audio_intensity * 0.2
+        if self.last_emotion == EmotionType.HAPPY:
+            corner_pull += 0.3
+        elif self.last_emotion == EmotionType.SAD:
+            corner_pull -= 0.2
+        
+        return {
+            'mouth_open': mouth_open,
+            'mouth_width': mouth_width,
+            'teeth_visible': teeth_visible,
+            'tongue_position': tongue_position,
+            'corner_pull': corner_pull,
+            'lip_tension': audio_intensity * 0.5
+        }
+    
+    def _apply_realtime_smoothing(self, current_params: Dict[str, float]) -> Dict[str, float]:
+        """
+        应用实时平滑处理
+        
+        Args:
+            current_params: 当前参数
+            
+        Returns:
+            平滑后的参数
+        """
+        if not hasattr(self, '_previous_params'):
+            self._previous_params = current_params.copy()
+            return current_params
+        
+        smoothing_factor = 0.4  # 实时处理使用较强的平滑
+        smoothed_params = {}
+        
+        for key, value in current_params.items():
+            if key in self._previous_params and isinstance(value, (int, float)):
+                smoothed_params[key] = (
+                    value * (1 - smoothing_factor) + 
+                    self._previous_params[key] * smoothing_factor
+                )
+            else:
+                smoothed_params[key] = value
+        
+        self._previous_params = smoothed_params.copy()
+        return smoothed_params
+    
+    def _fallback_processing(self, audio_chunk: np.ndarray) -> Dict[str, float]:
+        """
+        降级处理方式
+        
+        Args:
+            audio_chunk: 音频块
+            
+        Returns:
+            基础动画参数
+        """
+        audio_intensity = np.mean(np.abs(audio_chunk))
+        
+        return {
+            'mouth_open': min(1.0, audio_intensity * 2.0),
+            'teeth_visible': min(0.8, audio_intensity * 1.5),
+            'tongue_position': np.random.uniform(-0.1, 0.1),
+            'corner_pull': 0.0,
+            'mouth_width': 0.5,
+            'lip_tension': audio_intensity * 0.3,
+            'fallback_mode': True
+        }
     
     def get_current_animation_params(self) -> Dict[str, float]:
         """

@@ -7,6 +7,10 @@ import os
 import math
 import pickle
 import mediapipe as mp
+
+# FFmpeg路径配置
+FFMPEG_PATH = os.path.join(os.path.dirname(__file__), "ffmpeg-8.0-essentials_build", "bin", "ffmpeg.exe")
+
 mp_face_mesh = mp.solutions.face_mesh
 mp_face_detection = mp.solutions.face_detection
 
@@ -144,7 +148,7 @@ def CirculateVideo(video_in_path, video_out_path, export_imgs = False):
     front_video_path = "front.mp4"
     back_video_path = "back.mp4"
     # ffmpeg_cmd = "ffmpeg -i {} -r 25 -ss 00:00:00 -t 00:02:00 -an -loglevel quiet -y {}".format(video_in_path, front_video_path)
-    ffmpeg_cmd = "ffmpeg -i {} -r 25 -an -loglevel quiet -y {}".format(video_in_path, front_video_path)
+    ffmpeg_cmd = f'"{FFMPEG_PATH}" -i "{video_in_path}" -r 25 -an -loglevel quiet -y "{front_video_path}"'
     os.system(ffmpeg_cmd)
 
     # front_video_path = video_in_path
@@ -156,9 +160,9 @@ def CirculateVideo(video_in_path, video_out_path, export_imgs = False):
     cap.release()
 
 
-    ffmpeg_cmd = "ffmpeg -i {} -vf reverse -y {}".format(front_video_path, back_video_path)
+    ffmpeg_cmd = f'"{FFMPEG_PATH}" -i "{front_video_path}" -vf reverse -y "{back_video_path}"'
     os.system(ffmpeg_cmd)
-    ffmpeg_cmd = "ffmpeg -f concat -i {} -c:v copy -y {}".format("video_concat.txt", video_out_path)
+    ffmpeg_cmd = f'"{FFMPEG_PATH}" -f concat -i "video_concat.txt" -c:v copy -y "{video_out_path}"'
     os.system(ffmpeg_cmd)
     # exit()
     print("正向视频帧数：", frames)
@@ -195,14 +199,7 @@ def CirculateVideo(video_in_path, video_out_path, export_imgs = False):
         np.savetxt("{}/face_rect.txt".format(os.path.dirname(video_out_path)),
                    np.array([top_coincidence, bottom_coincidence, left_coincidence, right_coincidence]))
         os.makedirs("{}/image".format(os.path.dirname(video_out_path)))
-        ffmpeg_cmd = "ffmpeg -i {} -vf crop={}:{}:{}:{},scale=512:512:flags=neighbor -loglevel quiet -y {}/image/%06d.png".format(
-            front_video_path,
-            right_coincidence - left_coincidence,
-            bottom_coincidence - top_coincidence,
-            left_coincidence,
-            top_coincidence,
-            os.path.dirname(video_out_path)
-        )
+        ffmpeg_cmd = f'"{FFMPEG_PATH}" -i "{front_video_path}" -vf crop={right_coincidence - left_coincidence}:{bottom_coincidence - top_coincidence}:{left_coincidence}:{top_coincidence},scale=512:512:flags=neighbor -loglevel quiet -y "{os.path.dirname(video_out_path)}/image/%06d.png"'
         os.system(ffmpeg_cmd)
 
     cap = cv2.VideoCapture(video_out_path)

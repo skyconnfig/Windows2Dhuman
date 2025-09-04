@@ -9,6 +9,9 @@ import pickle
 import mediapipe as mp
 import shutil
 
+# FFmpeg路径配置
+FFMPEG_PATH = os.path.join(os.path.dirname(__file__), "ffmpeg-8.0-essentials_build", "bin", "ffmpeg.exe")
+
 # 自定义异常类
 class VideoProcessingError(Exception):
     """视频处理基类异常"""
@@ -230,13 +233,13 @@ def prepare_video(
         cap.release()
         vf_arg = f"scale={new_width}:{new_height}"
         cmd = [
-            "ffmpeg", "-i", input_path,
+            FFMPEG_PATH, "-i", input_path,
             "-vf", vf_arg,
             "-r", "25", "-an", "-y", output_path
         ]
     else:
         cmd = [
-            "ffmpeg", "-i", input_path,
+            FFMPEG_PATH, "-i", input_path,
             "-r", "25", "-an", "-y", output_path
         ]
     try:
@@ -254,9 +257,9 @@ def prepare_video(
 
 
 def data_preparation_mini(input_video, video_dir_path, resize_option = False):
-    # 检测系统环境是否有ffmpeg
-    if not shutil.which("ffmpeg"):
-        raise EnvironmentError("FFmpeg未安装或不在PATH中，请安装ffmpeg并设置为环境变量")
+    # 检测FFmpeg是否存在
+    if not os.path.exists(FFMPEG_PATH):
+        raise EnvironmentError(f"FFmpeg未找到，请确保文件存在: {FFMPEG_PATH}")
 
     # 创建输出目录
     data_dir = os.path.join(video_dir_path, "data")
